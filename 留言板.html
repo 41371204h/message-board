@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>🐾 毛孩留言區 | 互動版</title>
+  <style>
+    body {
+      font-family: "Noto Sans TC", sans-serif;
+      background-color: #fffaf5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    h1 { color: #ff7f50; }
+    #commentForm {
+      display: flex;
+      flex-direction: column;
+      width: 360px;
+      margin-bottom: 20px;
+    }
+    input, textarea {
+      margin: 5px 0;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background-color: #ff7f50;
+      color: white;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover { opacity: 0.9; }
+    #comments {
+      width: 360px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 10px;
+    }
+    .comment {
+      border-bottom: 1px solid #eee;
+      padding: 8px 0;
+    }
+    .comment:last-child { border: none; }
+    .name { font-weight: bold; color: #ff7f50; }
+    .time { color: gray; font-size: 0.8em; }
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .actions button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .like-btn {
+      color: #aaa;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: color 0.3s;
+    }
+    .like-btn.liked { color: #ff4b5c; }
+    .reply-box {
+      margin-top: 5px;
+      margin-left: 20px;
+      background: #fff8f4;
+      border-radius: 8px;
+      padding: 6px;
+    }
+    .reply {
+      margin-left: 20px;
+      border-left: 2px solid #ffb28f;
+      padding-left: 10px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🐾 毛孩留言區</h1>
+  <form id="commentForm">
+    <input type="text" id="name" placeholder="你的名字" required>
+    <textarea id="message" rows="3" placeholder="想說的話..." required></textarea>
+    <button type="submit">送出留言</button>
+  </form>
+
+  <div id="comments"></div>
+
+  <script>
+    const form = document.getElementById("commentForm");
+    const commentsDiv = document.getElementById("comments");
+
+    function getComments() {
+      return JSON.parse(localStorage.getItem("comments") || "[]");
+    }
+    function saveComments(data) {
+      localStorage.setItem("comments", JSON.stringify(data));
+    }
+
+    function renderComments() {
+      const saved = getComments();
+      commentsDiv.innerHTML = "";
+      saved.forEach((item, index) => {
+        const div = document.createElement("div");
+        div.classList.add("comment");
+
+        div.innerHTML = `
+          <div class="name">${item.name}</div>
+          <div class="message">${item.message}</div>
+          <div class="time">${item.time}</div>
+          <div class="actions">
+            <button class="like-btn ${item.liked ? 'liked':''}" data-index="${index}">❤️ <span>${item.likes||0}</span></button>
+            <button onclick="toggleReplyBox(${index})">💬 回覆</button>
+            <button onclick="deleteComment(${index})">🗑️ 刪除</button>
+          </div>
+          <div id="replyBox-${index}" class="reply-box" style="display:none;">
+            <input type="text" id="replyName-${index}" placeholder="你的名字">
+            <input type="text" id="replyMsg-${index}" placeholder="回覆內容">
+            <button onclick="addReply(${index})">送出</button>
+          </div>
+          <div class="replies">
+            ${(item.replies||[]).map(r => `<div class="reply"><div class="name">${r.name}</div><div class="message">${r.message}</div><div class="time">${r.time}</div></div>`).join("")}
+          </div>
+        `;
+        commentsDiv.appendChild(div);
+      });
+
+      // 綁定愛心事件
+      document.querySelectorAll(".like-btn").forEach(btn => {
+        btn.addEventListener("click", (e)=>{
+          const idx = e.currentTarget.dataset.index;
+          const saved = getComments();
+          const comment = saved[idx];
+          if(comment.liked){
+            comment.likes = Math.max(0,(comment.likes||0)-1);
+            comment.liked=false;
+          }else{
+            comment.likes=(comment.likes||0)+1;
+            comment.liked=true;
+          }
+          saveComments(saved);
+          renderComments();
+        });
+      });
+    }
+
+    form.addEventListener("submit", (e)=>{
+      e.preventDefault();
+      const name = document.getElementById("name").value.trim();
+      const message = document.getElementById("message").value.trim();
+      if(!name||!message) return;
+
+      const time = new Date().toLocaleString();
+      const newComment = {name,message,time,likes:0,liked:false,replies:[]};
+      const saved = getComments();
+      saved.push(newComment);
+      saveComments(saved);
+
+      form.reset();
+      renderComments();
+    });
+
+    function deleteComment(index){
+      if(confirm("確定要刪除此留言嗎？")){
+        const saved = getComments();
+        saved.splice(index,1);
+        saveComments(saved);
+        renderComments();
+      }
+    }
+
+    function toggleReplyBox(index){
+      const box = document.getElementById(`replyBox-${index}`);
+      box.style.display = box.style.display==='none'?'block':'none';
+    }
+
+    function addReply(index){
+      const name = document.getElementById(`replyName-${index}`).value.trim();
+      const msg = document.getElementById(`replyMsg-${index}`).value.trim();
+      if(!name||!msg) return alert("請填寫名稱和回覆內容");
+
+      const saved = getComments();
+      const time = new Date().toLocaleString();
+      saved[index].replies.push({name,message:msg,time});
+      saveComments(saved);
+      renderComments();
+    }
+
+    renderComments();
+  </script>
+</body>
+</html>
